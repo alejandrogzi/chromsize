@@ -1,0 +1,36 @@
+[package]
+name = "chromsize"
+version = "0.0.1"
+edition = "2021"
+authors = ["alejandrogzi <alejandrxgzi@gmail.com>"]
+license = "MIT"
+description = "just get your chrom sizes"
+homepage = "https://github.com/alejandrogzi/chromsize"
+repository = "https://github.com/alejandrogzi/chromsize"
+readme = "README.md"
+keywords = ["chromosome", "size", "genome", "fasta"]
+categories = ["command-line-utilities", "science"]
+default-run = "chromsize"
+
+[dependencies]
+memchr = "2.7"
+clap = {version = "4.0", features = ["derive"]}
+num_cpus = "1.14.0"
+memmap2 = "0.9.4"
+rayon = "1.10.0"
+
+[profile.release]
+lto = true
+opt-level = 3
+
+[[bin]]
+name = "chromsize"
+path = "src/main.rs"
+
+[[bin]]
+name = "chromsize-benchmark"
+path = "bench/bench.rs"
+
+[lib]
+name = "chromsize"
+path = "src/lib.rs"

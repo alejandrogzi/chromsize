@@ -1,0 +1,1 @@
+/home/alejandro/Documents/projects/chromsize/chromsize/target/release/chromsize: /home/alejandro/Documents/projects/chromsize/chromsize/src/cli.rs /home/alejandro/Documents/projects/chromsize/chromsize/src/lib.rs /home/alejandro/Documents/projects/chromsize/chromsize/src/main.rs /home/alejandro/Documents/projects/chromsize/chromsize/src/size.rs
