@@ -1,0 +1,18 @@
+[package]
+name = "py-chromsize"
+version = "0.1.0"
+edition = "2021"
+authors = ["alejandrogzi <alejandrxgzi@gmail.com>"]
+license = "MIT"
+description = "just get your chrom sizes"
+homepage = "https://github.com/alejandrogzi/chromsize"
+repository = "https://github.com/alejandrogzi/chromsize"
+keywords = ["chromosome", "size", "genome", "fasta"]
+
+[lib]
+name = "chromsize"
+crate-type = ["cdylib"]
+
+[dependencies]
+chromsize = { path = "../chromsize"}
+pyo3 = "0.20.0"
