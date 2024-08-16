@@ -13,6 +13,6 @@ fn main() {
         .build_global()
         .unwrap();
 
-    let sizes = chromsize(args.fasta).expect("Error getting chromosome sizes");
+    let sizes = get_sizes(args.fasta).expect("ERROR. Could not get sizes:");
     writer(sizes, args.out);
 }

@@ -18,6 +18,7 @@ clap = {version = "4.0", features = ["derive"]}
 num_cpus = "1.14.0"
 memmap2 = "0.9.4"
 rayon = "1.10.0"
+flate2 = "1.0.20"
 
 [profile.release]
 lto = true

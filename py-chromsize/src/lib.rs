@@ -6,7 +6,7 @@ use std::path::PathBuf;
 fn get_chromsizes(py: Python, fasta: PyObject) -> PyResult<Vec<(String, u64)>> {
     let fasta = PathBuf::from(fasta.extract::<String>(py)?);
 
-    let sizes = chromsize::chromsize(&fasta);
+    let sizes = chromsize::get_sizes(&fasta);
     sizes.map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))
 }
 
@@ -15,7 +15,7 @@ fn write_chromsizes(py: Python, fasta: PyObject, output: PyObject) -> PyResult<S
     let fasta = PathBuf::from(fasta.extract::<String>(py)?);
     let output = PathBuf::from(output.extract::<String>(py)?);
 
-    let sizes = chromsize::chromsize(&fasta);
+    let sizes = chromsize::get_sizes(&fasta);
     if let Ok(sizes) = sizes {
         chromsize::writer(sizes, &output);
         Ok(format!("Chromosome sizes written to {}", output.display()))
