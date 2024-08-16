@@ -1,0 +1,87 @@
+name: check
+
+on: [push, pull_request]
+
+jobs:
+  build-unix:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust: [stable, nightly]
+        os: [ubuntu-latest, macos-latest]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+      
+      - name: Cargo check
+        run: cargo check --manifest-path ./chromsize/chromsize/Cargo.toml 
+
+      - name: Cargo clippy
+        run: cargo clippy --manifest-path ./chromsize/chromsize/Cargo.toml 
+    
+      - name: Cargo build release
+        run: cargo build --manifest-path ./chromsize/chromsize/Cargo.toml --release       
+
+      - name: Cargo clean
+        if: ${{ matrix.rust == 'stable' }}
+        run: cargo clean --manifest-path ./chromsize/chromsize/Cargo.toml 
+      
+      - name: Upload build artifacts
+        if: ${{ startsWith(matrix.os, 'macos') != true && matrix.rust == 'stable' }}  
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ matrix.os }}
+          path: |
+            ./chromsize/chromsize/target/release/chromsize/chromsize
+            ./chromsize/chromsize/target/release/chromsize/libchromsize.rlib
+      
+      - name: Upload build artifacts (macOS)
+        if: ${{ startsWith(matrix.os, 'macos') && matrix.rust == 'stable' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ matrix.os }}
+          path: |
+            ./chromsize/chromsize/target/release/chromsize/chromsize
+            ./chromsize/chromsize/target/release/libchromsize/chromsize.dylib
+  py_port:
+    needs: [check-unix]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9']
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      
+      - name: Install pipx
+        run: python -m pip install --user pipx && python -m pipx ensurepath
+
+      - name: Install dependencies
+        run: pipx install hatch maturin
+
+      - name: Create Hatch environment
+        shell: bash
+        run: cd py-chromsize && hatch env create
+
+      - name: Activate Hatch env, build and run py test
+        shell: bash
+        run: |
+          cd py-chromsize
+          source $(hatch env find)/bin/activate
+          maturin develop --release --manifest-path Cargo.toml --features test
+          hatch run test --verbose
