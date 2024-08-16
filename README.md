@@ -5,7 +5,7 @@
 
   <p align="center">
     <a href="https://img.shields.io/badge/version-0.1.0dev-green" target="_blank">
-      <img alt="Version Badge" src="https://img.shields.io/badge/version-0.3.0-green">
+      <img alt="Version Badge" src="https://img.shields.io/badge/version-0.0.1-green">
     </a>
     <a href="https://crates.io/crates/chaintools" target="_blank">
       <img alt="Crates.io Version" src="https://img.shields.io/crates/v/chromsize">
@@ -36,6 +36,10 @@ but first, how is this better than any other option? yeah, just check the image 
 
 
 googled 'get chromosome sizes from fasta', grab every command/tool I found and benchmarked it. surprisingly, you can lose 14 seconds of your life just waiting for those chrom sizes to be calculated. crazy.
+
+> What's new on v.0.0.2?
+> - now reads .gz!
+> - CI implementation
 
 ## Usage
 ### Binary
@@ -174,4 +178,16 @@ here is all the info and metadata from my experiment:
 | A. mexicanum   | AmbMex60DD  | 28.20     | 3.327     | 14.375 (X 4.3)| 118.923 (X 35.7)| 118.422 (X 35.6)| 137.781 (X 41.4)| 57.626 (X 17.3)| 57.591 (X 17.3)| 121.257 (X 36.4)| 54.82 (X 16.5) | 128.374 (X 38.6)|
 | P. annectens   | PAN1.0      | 40.10     | 4.606     | 18.664 (X 4.1)| 167.85 (X 36.4)| 165.701 (X 36.0)| 196.833 (X 42.7)| 91.747 (X 19.9)| 91.924 (X 20.0)| 170.475 (X 37.0)| 77.707 (X 16.9)| 181.562 (X 39.4)|
 
+### how well performs with .gz?
+
+#### CHM13-T2T.fa.gz
+
+| Tool      | Cores                      | Time                   |
+|-----------|----------------------------|------------------------|
+| seqkit    | 16                         | 18.993 s ± 0.132 s     |
+| chromsize | default (max_cpus: 16)     | 7.631 s ± 0.010 s      |
+| seqkit    | default (4)                | 18.525 s ± 0.520 s     |
+| chromsize | 4                          | 8.035 s ± 0.077 s      |
+| seqkit    | 2                          | 18.535 s ± 0.376 s     |
+| chromsize | 2                          | 8.284 s ± 0.030 s      |
 
