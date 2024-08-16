@@ -132,7 +132,7 @@ fn benchmark() -> Result<(String, String), Box<dyn std::error::Error>> {
         cleanup: Some(format!("rm -f {} assets/*.fai", STDOUT)),
         commands: TOOLS
             .iter()
-            .map(|cmd| format!("{}", cmd))
+            .map(|cmd| cmd.to_string())
             .collect::<Vec<String>>(),
         extras: args
             .hyperfine_args
