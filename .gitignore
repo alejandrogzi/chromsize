@@ -1,3 +1,4 @@
 */target
 runs/
 /assets/*.fa
+*/*.gz
