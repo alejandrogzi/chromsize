@@ -1,3 +1,11 @@
+//! chromsize
+//! Alejandro Gonzales-Irribarren, 2024
+//!
+//! `chromsize` is a utility designed to extract chromosome names
+//! and their corresponding lengths from FASTA files. It supports
+//! both plain and gzipped FASTA formats and offers an option to
+//! include only the accession ID from the FASTA headers.
+
 use clap::{self, Parser};
 use num_cpus;
 use std::path::PathBuf;
@@ -5,7 +13,7 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[clap(
     name = "chromsize",
-    version = "0.0.1",
+    version = env!("CARGO_PKG_VERSION"),
     author = "Alejandro Gonzales-Irribarren <alejandrxgzi@gmail.com>",
     about = "just get your chrom sizes"
 )]
