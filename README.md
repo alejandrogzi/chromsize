@@ -121,9 +121,9 @@ to build the development container image:
 3. build the image `docker image build --tag chromsize .`
 4. run `docker run --rm -v "[dir_where_your_fa_is]:/dir" chromsize -f /dir/<INPUT> -o /dir/<OUTPUT>`
 
-> ## Conda (not available yet)
-> to use chromsize through Conda just:
-> 1. `conda install chromsize -c bioconda` or `conda create -n chromsize -c bioconda chromsize`
+## Conda
+to use chromsize through Conda just:
+1. `conda install chromsize -c bioconda` or `conda create -n chromsize -c bioconda chromsize`
 
 > ## Nextflow (not available yet)
 
