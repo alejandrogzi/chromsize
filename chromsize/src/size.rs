@@ -2,8 +2,8 @@
 //! Alejandro Gonzales-Irribarren, 2024
 //!
 //! `chromsize` is a utility designed to extract chromosome names
-//! and their corresponding lengths from FASTA files. It supports
-//! both plain and gzipped FASTA formats and offers an option to
+//! and their corresponding lengths from FASTA and 2bit files. It supports
+//! both plain and gzipped FASTA formats [and 2bit] and offers an option to
 //! include only the accession ID from the FASTA headers.
 
 use flate2::read::MultiGzDecoder;
@@ -17,7 +17,7 @@ use std::{
     path::Path,
 };
 
-/// Retrieves the sizes (chromosome name and length) from a FASTA or gzipped FASTA file.
+/// Retrieves the sizes (chromosome name and length) from a 2bit, FASTA or gzipped FASTA file.
 ///
 /// This function determines the file type (plain or gzipped FASTA) based on its
 /// extension and then calls the appropriate parsing function (`raw` or `with_gz`)
@@ -27,7 +27,7 @@ use std::{
 /// * `T` - The type of the file path, which must implement `AsRef<Path>` and `Debug`.
 ///
 /// # Arguments
-/// * `fasta` - The path to the input FASTA or gzipped FASTA file.
+/// * `file` - The path to the input 2bit, FASTA or gzipped FASTA file.
 /// * `accession_only` - If `true`, only the accession part of the FASTA header
 ///                      (before the first space) will be used as the chromosome name.
 ///                      Otherwise, the entire header line up to the first newline will be used.
@@ -64,16 +64,17 @@ use std::{
 /// std::fs::remove_file("test.fa.gz").unwrap();
 /// ```
 pub fn get_sizes<T: AsRef<Path> + Debug>(
-    fasta: T,
+    file: T,
     accession_only: bool,
 ) -> Result<Vec<(String, u64)>, Box<dyn Error>> {
-    let path = fasta.as_ref();
+    let path = file.as_ref();
     let ext = path.extension().unwrap();
-    let file = File::open(path)?;
+    let open = File::open(path)?;
 
     let lines = match ext.to_str().unwrap() {
-        "gz" => with_gz(&file, accession_only)?,
-        "fa" | "fasta" | "fna" => raw(&file, accession_only)?,
+        "gz" => with_gz(&open, accession_only)?,
+        "fa" | "fasta" | "fna" => raw(&open, accession_only)?,
+        "2bit" => with_2bit(&path)?,
         _ => panic!("ERROR: Not a fasta. Wrong file format!"),
     };
 
@@ -164,6 +165,49 @@ fn with_gz(file: &File, accession_only: bool) -> Result<Vec<(String, u64)>, Box<
     let lines = chromsize(&buffer, accession_only)?;
 
     Ok(lines)
+}
+
+/// Reads a 2bit file and extracts chromosome sizes.
+///
+/// This internal helper function opens and reads a 2bit genome file using the `twobit` crate,
+/// then extracts chromosome names and their corresponding sizes. The function converts the
+/// chromosome sizes from `usize` to `u64` for consistency with other chromsize functions.
+///
+/// # Arguments
+/// * `twobit` - A reference to the `Path` of the 2bit file to be processed.
+///
+/// # Returns
+/// A `Result` containing a `Vec` of `(String, u64)` tuples representing chromosome names
+/// and their sizes in base pairs, or a `Box<dyn Error>` if the file cannot be opened or read.
+///
+/// # Panics
+/// This function will panic if the 2bit file cannot be opened or read, with an error message
+/// indicating the specific issue and file path that caused the failure.
+///
+/// # Example
+/// ```rust, ignore
+/// use std::path::Path;
+/// use chromsize::with_2bit;
+///
+/// let path = Path::new("genome.2bit");
+/// let sizes = with_2bit(&path).unwrap();
+/// // sizes will contain tuples like ("chr1", 249250621), ("chr2", 242193529), etc.
+/// for (chrom, size) in sizes {
+///     println!("Chromosome {}: {} bp", chrom, size);
+/// }
+/// ```
+fn with_2bit(twobit: &Path) -> Result<Vec<(String, u64)>, Box<dyn Error>> {
+    let genome = twobit::TwoBitFile::open_and_read(twobit)
+        .unwrap_or_else(|e| panic!("ERROR: {e}. Could not open 2bit file -> {twobit:?}"));
+
+    let cs = genome
+        .chrom_names()
+        .into_iter()
+        .zip(genome.chrom_sizes().into_iter())
+        .map(|(chr, size)| (chr, size as u64))
+        .collect();
+
+    Ok(cs)
 }
 
 /// Parses a byte slice (representing FASTA content) to extract chromosome names and lengths.
