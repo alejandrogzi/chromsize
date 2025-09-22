@@ -3,8 +3,8 @@
 //!
 //! `chromsize` is a utility designed to extract chromosome names
 //! and their corresponding lengths from FASTA files. It supports
-//! both plain and gzipped FASTA formats and offers an option to
-//! include only the accession ID from the FASTA headers.
+//! both plain and gzipped FASTA formats [and .2bit] and offers an option to
+//! include only the accession ID from the FASTA or 2bit headers.
 
 use clap::{self, Parser};
 use num_cpus;
@@ -19,13 +19,13 @@ use std::path::PathBuf;
 )]
 pub struct Args {
     #[clap(
-        short = 'f',
-        long = "fasta",
-        help = "Path to FASTA file",
-        value_name = "FASTA",
+        short = 'i',
+        long = "input",
+        help = "Path to FASTA/2bit file",
+        value_name = "PATH",
         required = true
     )]
-    pub fasta: PathBuf,
+    pub input: PathBuf,
 
     #[clap(
         short = 'o',
