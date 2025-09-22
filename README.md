@@ -37,17 +37,17 @@ but first, how is this better than any other option? yeah, just check the image 
 
 googled 'get chromosome sizes from fasta', grab every command/tool I found and benchmarked it. surprisingly, you can lose 14 seconds of your life just waiting for those chrom sizes to be calculated. crazy.
 
-> What's new on v.0.0.3?
-> - now adds --accession-only flag to cut fasta headers
-> - fix CI implementation
+> What's new on v.0.0.32?
+> - now accepts .2bit files as input too!
+> - --fasta argument now is --input (or -i) [accounts for .2bit files]
 
 ## Usage
 ### Binary
 ``` rust
-Usage: chromsize --fasta <FASTA> --output <OUTPUT> [-t <THREADS>]
+Usage: chromsize --input <FASTA/FASTA.GZ/2BIT> --output <OUTPUT> [-t <THREADS>]
 
 Arguments:
-    -f, --fasta <FASTA>: FASTA file
+    -i, --input <FASTA>: FASTA file
     -o, --output <OUTPUT>: path to chrom.sizes
 
 Options:
@@ -70,7 +70,7 @@ to install rust and use chromsize on your system follow this steps:
 use chromsize;
 
 fn main() {
-    let input = PathBuf::new("/path/to/fasta.fa");
+    let input = PathBuf::new("/path/to/fasta.fa"); // INFO: can be .2bit too
     let output = PathBuf::new("/path/to/chrom.sizes");
 
     let sizes: Vec<(String, u64)> = chromsize::chromsize(&input);
@@ -84,11 +84,11 @@ git clone https://github.com/alejandrogzi/chromsize.git && cd chromsize/py-chrom
 hatch shell
 maturin develop --release
 ```
-use it as a binary wrapper:
+use it as a binary wrapper [for .fa and .2bit]:
 ``` python3
 import chromsize as cs
 
-input = "/path/to/fasta.fa"
+input = "/path/to/fasta.fa" # INFO: can be .2bit too
 output = "/path/to/chrom.sizes"
 cs.write_chromsizes(input, output)
 ```
@@ -96,7 +96,7 @@ or just get them directly
 ``` python3
 import chromsize as cs
 
-input = "/path/to/fasta.fa"
+input = "/path/to/fasta.fa" # INFO: can be .2bit too
 sizes = cs.get_chromsizes(input)
 
 >>> print(sizes)
@@ -112,7 +112,7 @@ to build chromsize from this repo, do:
 
 1. get rust
 2. run `git clone https://github.com/alejandrogzi/chromsize.git && cd chromsize`
-3. run `cargo run --release -- -i <GTF> -o <OUTPUT>`
+3. run `cargo run --release -- -i <FASTA/FASTA.GZ/2BIT> -o <OUTPUT>`
 
 ## Container image
 to build the development container image:
