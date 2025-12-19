@@ -37,9 +37,12 @@ but first, how is this better than any other option? yeah, just check the image 
 
 googled 'get chromosome sizes from fasta', grab every command/tool I found and benchmarked it. surprisingly, you can lose 14 seconds of your life just waiting for those chrom sizes to be calculated. crazy.
 
-> What's new on v.0.0.32?
-> - now accepts .2bit files as input too!
-> - --fasta argument now is --input (or -i) [accounts for .2bit files]
+> What's new on v.0.0.33?
+> - --fasta now is --sequence, change based on .fa/.fa.gz/.2bit inputs
+> - implementation of stdin mode!
+> - --sequence now defaults to -, so omitting it reads stdin; help text mentions stdin.
+> - SIMD newline/CR counting via bytecount 
+> - Switched gzip inflate to flate2 with the faster zlib-ng-compat backend and enlarged output buffering
 
 ## Usage
 ### Binary
