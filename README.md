@@ -41,7 +41,7 @@
         <a href="https://docs.rs/chromsize/0.0.33/chromsize/">docs</a> .
         <a href="https://github.com/alejandrogzi/chromsize?tab=readme-ov-file#Usage">usage</a> .
         <a href="https://github.com/alejandrogzi/chromsize?tab=readme-ov-file#Installation">install</a> .
-        <a href="https://github.com/alejandrogzi/chromsize?tab=readme-ov-file#Conda">conda</a> .
+        <a href="https://github.com/alejandrogzi/chromsize?tab=readme-ov-file#Conda">conda</a>
     </samp>
   </p>
 
