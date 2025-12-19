@@ -1,3 +1,11 @@
+//! chromsize
+//! Alejandro Gonzales-Irribarren, 2024
+//!
+//! `chromsize` is a utility designed to extract chromosome names
+//! and their corresponding lengths from FASTA files. It supports
+//! both plain and gzipped FASTA formats [and .2bit] and offers an option to
+//! include only the accession ID from the FASTA or 2bit headers.
+
 use clap::{self, Parser};
 use num_cpus;
 use std::path::PathBuf;
@@ -44,4 +52,12 @@ pub struct Args {
         default_value_t = num_cpus::get()
     )]
     pub threads: usize,
+
+    #[clap(
+        short = 'a',
+        long = "accession-only",
+        help = "only keep the accession id part of the header (stop after blank)",
+        default_value_t = false
+    )]
+    pub accession_only: bool,
 }

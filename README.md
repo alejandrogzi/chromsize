@@ -7,13 +7,13 @@
     <a href="https://img.shields.io/badge/version-0.1.0dev-green" target="_blank">
       <img alt="Version Badge" src="https://img.shields.io/badge/version-0.0.1-green">
     </a>
-    <a href="https://crates.io/crates/chaintools" target="_blank">
+    <a href="https://crates.io/crates/chromsize" target="_blank">
       <img alt="Crates.io Version" src="https://img.shields.io/crates/v/chromsize">
     </a>
-    <a href="https://github.com/alejandrogzi/chaintools" target="_blank">
+    <a href="https://github.com/alejandrogzi/chromsize" target="_blank">
       <img alt="GitHub License" src="https://img.shields.io/github/license/alejandrogzi/chromsize?color=blue">
     </a>
-    <a href="https://crates.io/crates/chaintools" target="_blank">
+    <a href="https://crates.io/crates/chromsize" target="_blank">
       <img alt="Crates.io Total Downloads" src="https://img.shields.io/crates/d/chromsize">
     </a>
   </p>
@@ -37,9 +37,9 @@ but first, how is this better than any other option? yeah, just check the image 
 
 googled 'get chromosome sizes from fasta', grab every command/tool I found and benchmarked it. surprisingly, you can lose 14 seconds of your life just waiting for those chrom sizes to be calculated. crazy.
 
-> What's new on v.0.0.2?
-> - now reads .gz!
-> - CI implementation
+> What's new on v.0.0.32?
+> - now accepts .2bit files as input too!
+> - --fasta argument now is --input (or -i) [accounts for .2bit files]
 
 ## Usage
 ### Binary
@@ -52,6 +52,7 @@ Arguments:
 
 Options:
     -t, --threads <THREADS>: number of threads [default: your max ncpus]
+    -a, --accession-only     only keep the accession id part of the header (stop after blank)
     --help: print help
     --version: print version
 ```
@@ -89,7 +90,7 @@ git clone https://github.com/alejandrogzi/chromsize.git && cd chromsize/py-chrom
 hatch shell
 maturin develop --release
 ```
-use it as a binary wrapper:
+use it as a binary wrapper [for .fa and .2bit]:
 ``` python3
 import chromsize as cs
 
@@ -126,9 +127,9 @@ to build the development container image:
 3. build the image `docker image build --tag chromsize .`
 4. run `docker run --rm -v "[dir_where_your_fa_is]:/dir" chromsize -s /dir/<SEQUENCE> -o /dir/<OUTPUT>`
 
-> ## Conda (not available yet)
-> to use chromsize through Conda just:
-> 1. `conda install chromsize -c bioconda` or `conda create -n chromsize -c bioconda chromsize`
+## Conda
+to use chromsize through Conda just:
+1. `conda install chromsize -c bioconda` or `conda create -n chromsize -c bioconda chromsize`
 
 > ## Nextflow (not available yet)
 

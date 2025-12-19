@@ -1,6 +1,6 @@
 [package]
 name = "py-chromsize"
-version = "0.0.2"
+version = "0.0.21"
 edition = "2021"
 authors = ["alejandrogzi <alejandrxgzi@gmail.com>"]
 license = "MIT"
@@ -14,5 +14,5 @@ name = "chromsize"
 crate-type = ["cdylib"]
 
 [dependencies]
-chromsize = { path = "../chromsize"}
+chromsize = { path = "../chromsize" }
 pyo3 = "0.20.0"

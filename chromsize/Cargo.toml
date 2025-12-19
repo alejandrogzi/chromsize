@@ -14,7 +14,7 @@ default-run = "chromsize"
 
 [dependencies]
 memchr = "2.7"
-clap = {version = "4.0", features = ["derive"]}
+clap = { version = "4.0", features = ["derive"] }
 num_cpus = "1.14.0"
 memmap2 = "0.9.4"
 rayon = "1.10.0"

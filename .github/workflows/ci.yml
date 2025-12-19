@@ -9,16 +9,16 @@ jobs:
       matrix:
         rust: [stable, nightly]
         os: [ubuntu-latest, macos-latest]
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
-      
+
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
-      
+
       - name: Cargo check
         run: cargo check --manifest-path ./chromsize/Cargo.toml 
 
@@ -33,7 +33,7 @@ jobs:
         run: cargo clean --manifest-path ./chromsize/Cargo.toml 
       
       - name: Upload build artifacts
-        if: ${{ startsWith(matrix.os, 'macos') != true && matrix.rust == 'stable' }}  
+        if: ${{ startsWith(matrix.os, 'macos') != true && matrix.rust == 'stable' }}
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts-${{ matrix.os }}
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.9']
+        python-version: ["3.9"]
         target: [x86_64, aarch64]
     steps:
       - uses: actions/checkout@v3
@@ -67,7 +67,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      
+
       - name: Install pipx
         run: python -m pip install --user pipx && python -m pipx ensurepath
 

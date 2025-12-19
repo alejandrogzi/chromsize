@@ -1,3 +1,11 @@
+//! chromsize
+//! Alejandro Gonzales-Irribarren, 2024
+//!
+//! `chromsize` is a utility designed to extract chromosome names
+//! and their corresponding lengths from FASTA and 2bit files. It supports
+//! both plain and gzipped FASTA formats [and 2bit] and offers an option to
+//! include only the accession ID from the FASTA headers.
+
 use flate2::read::MultiGzDecoder;
 use memmap2::Mmap;
 use rayon::prelude::*;
