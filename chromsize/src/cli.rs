@@ -2,23 +2,30 @@ use clap::{self, Parser};
 use num_cpus;
 use std::path::PathBuf;
 
+/// Command line arguments for the chromsize application.
+///
+/// This struct defines the configuration options that can be passed
+/// to the chromsize program, including input file, output file, and
+/// threading options.
 #[derive(Parser, Debug)]
 #[clap(
     name = "chromsize",
-    version = "0.0.1",
+    version = env!("CARGO_PKG_VERSION"),
     author = "Alejandro Gonzales-Irribarren <alejandrxgzi@gmail.com>",
     about = "just get your chrom sizes"
 )]
 pub struct Args {
+    /// Path to sequence file (use '-' or omit to read stdin)
     #[clap(
-        short = 'f',
-        long = "fasta",
-        help = "Path to FASTA file",
-        value_name = "FASTA",
-        required = true
+        short = 's',
+        long = "sequence",
+        help = "Path to sequence file (FASTA/2bit, use '-' or omit to read stdin)",
+        value_name = "SEQUENCE",
+        default_value = "-"
     )]
-    pub fasta: PathBuf,
+    pub sequence: PathBuf,
 
+    /// Path to output chrom sizes
     #[clap(
         short = 'o',
         long = "output",
@@ -28,6 +35,7 @@ pub struct Args {
     )]
     pub out: PathBuf,
 
+    /// Number of threads
     #[clap(
         short = 't',
         long,
