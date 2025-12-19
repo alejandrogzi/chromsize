@@ -9,331 +9,513 @@
 use flate2::read::MultiGzDecoder;
 use memmap2::Mmap;
 use rayon::prelude::*;
-use std::error::Error;
 use std::{
+    fmt,
     fmt::Debug,
     fs::File,
-    io::{BufWriter, Read, Write},
+    io::{self, BufWriter, Read, Write},
     path::Path,
 };
 
-/// Retrieves the sizes (chromosome name and length) from a 2bit, FASTA or gzipped FASTA file.
+const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
+const TWOBIT_MAGIC: [u8; 4] = [0x1a, 0x41, 0x27, 0x43];
+const TWOBIT_MAGIC_REV: [u8; 4] = [0x43, 0x27, 0x41, 0x1a];
+
+/// Error types for the chromsize application.
 ///
-/// This function determines the file type (plain or gzipped FASTA) based on its
-/// extension and then calls the appropriate parsing function (`raw` or `with_gz`)
-/// to extract chromosome names and their total sequence lengths.
+/// This enum represents all possible error conditions that can occur
+/// during sequence processing and chromosome size calculation.
+#[derive(Debug)]
+pub enum ChromsizeError {
+    /// I/O related errors from file operations
+    Io(io::Error),
+    /// Empty input data (no content to process)
+    EmptyInput,
+    /// Invalid input format or unsupported content
+    InvalidInput(String),
+    /// Invalid FASTA format with descriptive message
+    InvalidFasta(String),
+}
+
+impl fmt::Display for ChromsizeError {
+    /// Formats the error for display purposes.
+    ///
+    /// Provides human-readable error messages for each error variant.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ChromsizeError::Io(err) => write!(f, "I/O error: {}", err),
+            ChromsizeError::EmptyInput => write!(f, "Input is empty"),
+            ChromsizeError::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
+            ChromsizeError::InvalidFasta(msg) => write!(f, "Invalid FASTA: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for ChromsizeError {
+    /// Returns the underlying error source for error chaining.
+    ///
+    /// Only IO errors have an underlying source, other errors are standalone.
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ChromsizeError::Io(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<io::Error> for ChromsizeError {
+    /// Converts I/O errors to ChromsizeError.
+    ///
+    /// This enables the `?` operator for I/O operations throughout the codebase.
+    fn from(err: io::Error) -> Self {
+        ChromsizeError::Io(err)
+    }
+}
+
+/// Represents different types of input data storage.
 ///
-/// # Type Parameters
-/// * `T` - The type of the file path, which must implement `AsRef<Path>` and `Debug`.
+/// This enum allows handling both memory-mapped files and owned buffers,
+/// enabling efficient processing of different input sources.
+enum InputData {
+    /// Memory-mapped file data (zero-copy for regular files)
+    Mmap(Mmap),
+    /// Owned byte buffer (for stdin or decompressed data)
+    Owned(Vec<u8>),
+}
+
+enum InputFormat {
+    Fasta,
+    TwoBit,
+}
+
+impl AsRef<[u8]> for InputData {
+    /// Provides read access to the underlying byte data.
+    ///
+    /// This enables uniform processing regardless of whether the data
+    /// comes from a memory-mapped file or an owned buffer.
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            InputData::Mmap(m) => m.as_ref(),
+            InputData::Owned(b) => b.as_slice(),
+        }
+    }
+}
+
+/// Extracts chromosome sizes from a sequence file.
+///
+/// This function processes a sequence file (from file path or stdin) and returns
+/// a vector of tuples containing chromosome names and their corresponding sizes.
+/// Input format is detected by content (FASTA header or 2bit signature).
 ///
 /// # Arguments
-/// * `file` - The path to the input 2bit, FASTA or gzipped FASTA file.
-/// * `accession_only` - If `true`, only the accession part of the FASTA header
-///                      (before the first space) will be used as the chromosome name.
-///                      Otherwise, the entire header line up to the first newline will be used.
+///
+/// * `sequence` - Path to a FASTA/2bit file or "-" for stdin
 ///
 /// # Returns
-/// A `Result` containing a `Vec` of `(String, u64)` tuples, where each tuple
-/// represents `(chromosome_name, chromosome_length)`, or a `Box<dyn Error>` if
-/// an I/O or parsing error occurs, or if the file format is not recognized.
 ///
-/// # Panics
-/// * If the file extension cannot be determined or is not one of "gz", "fa", "fasta", or "fna".
-/// * If the underlying `raw` or `with_gz` functions panic due to file reading issues.
+/// Vector of (chromosome_name, size) pairs
 ///
-/// # Example
-/// ```rust, ignore
-/// use std::path::PathBuf;
-/// use std::fs::File;
-/// use std::io::Write;
-/// use flate2::{Compression, write::GzEncoder};
-/// use chromsize::get_sizes;
+/// # Examples
 ///
-/// File::create("test.fa").unwrap().write_all(b">chr1 description\nATGC\n>chr2\nGCTA").unwrap();
-/// let sizes_plain = get_sizes(PathBuf::from("test.fa"), false).unwrap();
-/// assert!(sizes_plain.contains(&("chr1 description".to_string(), 4)));
-/// assert!(sizes_plain.contains(&("chr2".to_string(), 4)));
-/// std::fs::remove_file("test.fa").unwrap();
-///
-/// let mut encoder = GzEncoder::new(File::create("test.fa.gz").unwrap(), Compression::default());
-/// encoder.write_all(b">chrX another desc\nNNNN\n>chrY\nAAAA").unwrap();
-/// encoder.finish().unwrap();
-/// let sizes_gz = get_sizes(PathBuf::from("test.fa.gz"), true).unwrap();
-/// assert!(sizes_gz.contains(&("chrX".to_string(), 4)));
-/// assert!(sizes_gz.contains(&("chrY".to_string(), 4)));
-/// std::fs::remove_file("test.fa.gz").unwrap();
+/// ```ignore
+/// let sizes = get_sizes("genome.fa")?;
+/// // sizes: [("chr1", 248956422), ("chr2", 242193529), ...]
 /// ```
 pub fn get_sizes<T: AsRef<Path> + Debug>(
-    file: T,
-    accession_only: bool,
-) -> Result<Vec<(String, u64)>, Box<dyn Error>> {
-    let path = file.as_ref();
-    let ext = path.extension().unwrap();
-    let open = File::open(path)?;
-
-    let lines = match ext.to_str().unwrap() {
-        "gz" => with_gz(&open, accession_only)?,
-        "fa" | "fasta" | "fna" => raw(&open, accession_only)?,
-        "2bit" => with_2bit(&path)?,
-        _ => panic!("ERROR: Not a fasta. Wrong file format!"),
+    sequence: T,
+) -> Result<Vec<(String, u64)>, ChromsizeError> {
+    let path = sequence.as_ref();
+    let data = if is_stdin(path) {
+        from_stdin()?
+    } else {
+        from_file(path)?
     };
 
-    Ok(lines)
+    sizes_from_bytes(data.as_ref())
 }
 
-/// Reads a plain (non-gzipped) FASTA file using memory mapping and extracts chromosome sizes.
+/// Checks if the path represents stdin input.
 ///
-/// This internal helper function maps the entire file into memory for efficient access,
-/// and then processes the byte slice using `chromsize` to get chromosome names and lengths.
+/// Returns true if the path is "-" which conventionally means read from stdin.
+/// Checks if the path represents stdin input.
 ///
-/// # Arguments
-/// * `file` - A reference to the opened `File` object.
-/// * `accession_only` - A boolean indicating whether to extract only the accession
-///                      part of the FASTA header.
+/// Returns true if the path is "-" which conventionally means read from stdin.
+fn is_stdin(path: &Path) -> bool {
+    path == Path::new("-")
+}
+
+/// Reads data from standard input with optional gzip decompression.
+///
+/// This function reads all data from stdin, detects if it's gzip-compressed,
+/// and decompresses it if necessary. Returns the data in an owned buffer.
 ///
 /// # Returns
-/// A `Result` containing a `Vec` of `(String, u64)` tuples, or a `Box<dyn Error>` if
-/// memory mapping fails or `chromsize` encounters an error.
 ///
-/// # Safety
-/// This function uses `unsafe { Mmap::map(file)? }` to memory-map the file.
-/// This is safe as long as the file descriptor remains valid for the lifetime of the `Mmap` object.
+/// InputData::Owned containing the raw or decompressed input data
+/// Reads data from standard input with optional gzip decompression.
 ///
-/// # Example
-/// ```rust, ignore
-/// use std::fs::File;
-/// use std::io::Write;
-/// use chromsize::raw;
-///
-/// File::create("temp.fa").unwrap().write_all(b">chrA\nAAAA\n>chrB\nTTTT").unwrap();
-/// let file = File::open("temp.fa").unwrap();
-/// let sizes = raw(&file, false).unwrap();
-/// assert!(sizes.contains(&("chrA".to_string(), 4)));
-/// assert!(sizes.contains(&("chrB".to_string(), 4)));
-/// std::fs::remove_file("temp.fa").unwrap();
-/// ```
-pub fn raw(file: &File, accession_only: bool) -> Result<Vec<(String, u64)>, Box<dyn Error>> {
-    let mmap = unsafe { Mmap::map(file)? };
-    let lines = chromsize(&mmap, accession_only)?;
-
-    Ok(lines)
-}
-
-/// Reads a gzipped FASTA file, decompresses it into a buffer, and extracts chromosome sizes.
-///
-/// This internal helper function memory-maps the gzipped file, uses `MultiGzDecoder`
-/// to decompress its content into an in-memory buffer, and then processes the buffer
-/// using `chromsize` to get chromosome names and lengths.
-///
-/// # Arguments
-/// * `file` - A reference to the opened gzipped `File` object.
-/// * `accession_only` - A boolean indicating whether to extract only the accession
-///                      part of the FASTA header.
+/// This function reads all data from stdin, detects if it's gzip-compressed,
+/// and decompresses it if necessary. Returns the data in an owned buffer.
 ///
 /// # Returns
-/// A `Result` containing a `Vec` of `(String, u64)` tuples, or a `Box<dyn Error>` if
-/// memory mapping fails, decompression fails, or `chromsize` encounters an error.
 ///
-/// # Safety
-/// This function uses `unsafe { Mmap::map(file)? }` to memory-map the file.
-/// This is safe as long as the file descriptor remains valid for the lifetime of the `Mmap` object.
-///
-/// # Example
-/// ```rust, ignore
-/// use std::fs::File;
-/// use std::io::Write;
-/// use flate2::{Compression, write::GzEncoder};
-/// use chromsize::with_gz;
-///
-/// let mut encoder = GzEncoder::new(File::create("temp.fa.gz").unwrap(), Compression::default());
-/// encoder.write_all(b">seq1\nGCAT\n>seq2\nTAGC").unwrap();
-/// encoder.finish().unwrap();
-///
-/// let file = File::open("temp.fa.gz").unwrap();
-/// let sizes = with_gz(&file, false).unwrap();
-/// assert!(sizes.contains(&("seq1".to_string(), 4)));
-/// assert!(sizes.contains(&("seq2".to_string(), 4)));
-/// std::fs::remove_file("temp.fa.gz").unwrap();
-/// ```
-fn with_gz(file: &File, accession_only: bool) -> Result<Vec<(String, u64)>, Box<dyn Error>> {
-    let mmap = unsafe { Mmap::map(file)? };
-    let mut decoder = MultiGzDecoder::new(&mmap[..]);
+/// InputData::Owned containing the raw or decompressed input data
+fn from_stdin() -> Result<InputData, ChromsizeError> {
+    let mut buffer = Vec::with_capacity(1024 * 1024);
+    let mut handle = io::stdin().lock();
+    handle.read_to_end(&mut buffer)?;
 
-    let mut buffer = Vec::with_capacity(100 * 1024 * 1024); // 100MB buffer
-    decoder.read_to_end(&mut buffer)?;
+    if buffer.is_empty() {
+        return Err(ChromsizeError::EmptyInput);
+    }
 
-    let lines = chromsize(&buffer, accession_only)?;
+    if is_gzip(&buffer) {
+        let decompressed = decompress_gzip(&buffer)?;
 
-    Ok(lines)
+        if decompressed.is_empty() {
+            return Err(ChromsizeError::EmptyInput);
+        }
+
+        Ok(InputData::Owned(decompressed))
+    } else {
+        Ok(InputData::Owned(buffer))
+    }
 }
 
-/// Reads a 2bit file and extracts chromosome sizes.
+/// Reads data from a file with memory mapping and optional gzip decompression.
 ///
-/// This internal helper function opens and reads a 2bit genome file using the `twobit` crate,
-/// then extracts chromosome names and their corresponding sizes. The function converts the
+/// This function attempts to memory-map the file for efficient access.
+/// If the file is gzip-compressed, it decompresses the entire content
+/// into an owned buffer instead.
+///
+/// # Arguments
+///
+/// * `path` - Path to the input file
+///
+/// # Returns
+///
+/// InputData::Mmap for uncompressed files, InputData::Owned for compressed files
+/// Reads data from a file with memory mapping and optional gzip decompression.
+///
+/// This function attempts to memory-map the file for efficient access.
+/// If the file is gzip-compressed, it decompresses the entire content
+/// into an owned buffer instead.
+///
+/// # Arguments
+///
+/// * `path` - Path to the input file
+///
+/// # Returns
+///
+/// InputData::Mmap for uncompressed files, InputData::Owned for compressed files
+fn from_file(path: &Path) -> Result<InputData, ChromsizeError> {
+    let file = File::open(path)?;
+    let mmap = unsafe { Mmap::map(&file)? };
+
+    if mmap.is_empty() {
+        return Err(ChromsizeError::EmptyInput);
+    }
+
+    if is_gzip(&mmap) {
+        let decompressed = decompress_gzip(&mmap)?;
+        if decompressed.is_empty() {
+            return Err(ChromsizeError::EmptyInput);
+        }
+        Ok(InputData::Owned(decompressed))
+    } else {
+        Ok(InputData::Mmap(mmap))
+    }
+}
+
+/// Reads 2bit data and extracts chromosome sizes.
+///
+/// This internal helper function opens and reads 2bit data using the `twobit` crate,
+/// then extracts chromosome names and their corresponding sizes. The function converts
 /// chromosome sizes from `usize` to `u64` for consistency with other chromsize functions.
 ///
 /// # Arguments
-/// * `twobit` - A reference to the `Path` of the 2bit file to be processed.
+/// * `twobit` - Raw 2bit data to be processed.
 ///
 /// # Returns
 /// A `Result` containing a `Vec` of `(String, u64)` tuples representing chromosome names
-/// and their sizes in base pairs, or a `Box<dyn Error>` if the file cannot be opened or read.
+/// and their sizes in base pairs, or an error if the data cannot be parsed.
 ///
-/// # Panics
-/// This function will panic if the 2bit file cannot be opened or read, with an error message
-/// indicating the specific issue and file path that caused the failure.
-///
-/// # Example
-/// ```rust, ignore
-/// use std::path::Path;
-/// use chromsize::with_2bit;
-///
-/// let path = Path::new("genome.2bit");
-/// let sizes = with_2bit(&path).unwrap();
-/// // sizes will contain tuples like ("chr1", 249250621), ("chr2", 242193529), etc.
-/// for (chrom, size) in sizes {
-///     println!("Chromosome {}: {} bp", chrom, size);
-/// }
-/// ```
-fn with_2bit(twobit: &Path) -> Result<Vec<(String, u64)>, Box<dyn Error>> {
-    let genome = twobit::TwoBitFile::open_and_read(twobit)
-        .unwrap_or_else(|e| panic!("ERROR: {e}. Could not open 2bit file -> {twobit:?}"));
+fn from_2bit(twobit: &[u8]) -> Result<Vec<(String, u64)>, ChromsizeError> {
+    let genome = twobit::TwoBitFile::from_buf(twobit)
+        .map_err(|e| ChromsizeError::InvalidInput(format!("Invalid 2bit data: {e}")))?;
 
     let cs = genome
         .chrom_names()
         .into_iter()
-        .zip(genome.chrom_sizes().into_iter())
+        .zip(genome.chrom_sizes())
         .map(|(chr, size)| (chr, size as u64))
         .collect();
 
     Ok(cs)
 }
 
-/// Parses a byte slice (representing FASTA content) to extract chromosome names and lengths.
+/// Processes raw bytes to extract chromosome sizes by detecting format.
 ///
-/// This internal helper function processes the raw byte data. It splits the data
-/// by FASTA header markers (`>`), extracts the chromosome name (optionally `accession_only`),
-/// and calculates the total length of the sequence lines for each chromosome.
-/// It uses `rayon` for parallel processing of chunks for performance.
+/// This function acts as a dispatcher that determines the input format
+/// (FASTA or 2bit) and routes the data to the appropriate processor.
+/// It returns an error if the format is not recognized.
 ///
 /// # Arguments
-/// * `data` - The byte slice containing the FASTA content.
-/// * `accession_only` - A boolean indicating whether to extract only the accession
-///                      part of the FASTA header.
+///
+/// * `data` - Raw byte data to be processed
 ///
 /// # Returns
-/// A `Result` containing a `Vec` of `(String, u64)` tuples, or a `Box<dyn Error>` if
-/// UTF-8 conversion fails (though `unsafe { from_utf8_unchecked }` is used here,
-/// implying an expectation of valid UTF-8).
 ///
-/// # Safety
-/// This function uses `unsafe { std::str::from_utf8_unchecked(...) }`. This is safe
-/// *if and only if* the byte slices being converted are guaranteed to be valid UTF-8.
-/// In the context of FASTA files, sequence data and header information are typically
-/// ASCII, making this assumption reasonable for common use cases.
+/// Vector of (chromosome_name, size) pairs or error for unsupported format
 ///
-/// # Example
-/// ```rust
-/// use chromsize::chromsize;
+/// # Examples
 ///
-/// // Example with full headers
-/// let data1 = b">chr1 description one\nATGCATGC\n>chr2 description two\nGGCC";
-/// let sizes1 = chromsize(data1, false).unwrap();
-/// assert!(sizes1.contains(&("chr1 description one".to_string(), 8)));
-/// assert!(sizes1.contains(&("chr2 description two".to_string(), 4)));
-///
-/// // Example with accession only
-/// let data2 = b">chrA desc A\nTTTT\n>chrB desc B\nCCCC";
-/// let sizes2 = chromsize(data2, true).unwrap();
-/// assert!(sizes2.contains(&("chrA".to_string(), 4)));
-/// assert!(sizes2.contains(&("chrB".to_string(), 4)));
-///
-/// // Example with empty lines or no sequence
-/// let data3 = b">empty_chr\n\n>another_chr\nABC";
-/// let sizes3 = chromsize(data3, false).unwrap();
-/// assert!(sizes3.contains(&("empty_chr".to_string(), 0)));
-/// assert!(sizes3.contains(&("another_chr".to_string(), 3)));
+/// ```ignore
+/// let data = b">chr1\nATGC\n>chr2\nGCTA";
+/// let sizes = sizes_from_bytes(data)?;
+/// // sizes: [("chr1", 4), ("chr2", 4)]
 /// ```
-fn chromsize(data: &[u8], accession_only: bool) -> Result<Vec<(String, u64)>, Box<dyn Error>> {
-    let lines = data
-        .par_split(|&c| c == b'>')
-        .filter(|chunk| !chunk.is_empty())
-        .map(|chunk| {
-            let mut totals = 0u64;
-            let stop = memchr::memchr(b'\n', chunk).unwrap_or(0);
-            let name_stop = match accession_only {
-                true => memchr::memchr(b' ', &chunk[..stop]).unwrap_or(stop),
-                false => stop,
-            };
-            let chr = unsafe {
-                std::str::from_utf8_unchecked(&chunk[..name_stop])
-                    .trim()
-                    .to_string()
-            };
-            let data = &chunk[stop + 1..];
-            for line in data.split(|&c| c == b'\n') {
-                totals += unsafe { std::str::from_utf8_unchecked(line).trim().len() as u64 };
-            }
-            (chr, totals)
-        })
-        .collect::<Vec<(String, u64)>>();
-
-    Ok(lines)
+fn sizes_from_bytes(data: &[u8]) -> Result<Vec<(String, u64)>, ChromsizeError> {
+    match sniff_format(data) {
+        Some(InputFormat::TwoBit) => from_2bit(data),
+        Some(InputFormat::Fasta) => chromsize(data),
+        None => Err(ChromsizeError::InvalidInput(
+            "Input format not recognized (expected FASTA or 2bit)".to_string(),
+        )),
+    }
 }
 
-/// Writes chromosome sizes (name and length) to an output file.
+/// Detects the input format by examining file magic bytes and patterns.
 ///
-/// This function takes a vector of `(String, u64)` tuples and writes each
-/// pair as a tab-separated line to the specified output file. It uses a
-/// `BufWriter` for efficient buffered writing. Records with empty chromosome
-/// names and zero length are explicitly skipped.
-///
-/// # Type Parameters
-/// * `T` - The type of the output path, which must implement `AsRef<Path>` and `Debug`.
+/// This function identifies whether the data is in 2bit format (by checking
+/// the 4-byte magic signature) or FASTA format (by checking for the '>' header
+/// character). Returns None for unrecognized formats.
 ///
 /// # Arguments
-/// * `sizes` - A `Vec` of `(String, u64)` tuples representing chromosome names and their lengths.
-/// * `out` - The path to the output file where the sizes will be written.
 ///
-/// # Panics
-/// * If the output file cannot be created.
-/// * If an I/O error occurs during writing to the file.
+/// * `data` - Raw byte data to examine for format identification
 ///
-/// # Example
-/// ```rust, ignore
-/// use std::fs::{File, read_to_string};
-/// use std::path::PathBuf;
-/// use chromsize::writer;
+/// # Returns
 ///
-/// let mut sizes_data = Vec::new();
-/// sizes_data.push(("chr1".to_string(), 1000));
-/// sizes_data.push(("chr2".to_string(), 500));
-/// sizes_data.push(("".to_string(), 0)); // This record should be skipped
+/// Some(InputFormat) if format is recognized, None otherwise
+fn sniff_format(data: &[u8]) -> Option<InputFormat> {
+    if data.len() >= TWOBIT_MAGIC.len()
+        && (data[..TWOBIT_MAGIC.len()] == TWOBIT_MAGIC
+            || data[..TWOBIT_MAGIC_REV.len()] == TWOBIT_MAGIC_REV)
+    {
+        return Some(InputFormat::TwoBit);
+    }
+
+    if data.first() == Some(&b'>') {
+        return Some(InputFormat::Fasta);
+    }
+
+    None
+}
+
+/// Detects if data is gzip-compressed by checking magic bytes.
 ///
-/// writer(sizes_data, PathBuf::from("chrom_sizes.txt"));
+/// Gzip files start with the magic bytes 0x1f 0x8b.
 ///
-/// let content = read_to_string("chrom_sizes.txt").unwrap();
-/// assert_eq!(content, "chr1\t1000\nchr2\t500\n");
-/// std::fs::remove_file("chrom_sizes.txt").unwrap();
+/// # Arguments
+///
+/// * `bytes` - Byte slice to check
+///
+/// # Returns
+///
+/// true if the data appears to be gzip-compressed
+/// Detects if data is gzip-compressed by checking magic bytes.
+///
+/// Gzip files start with the magic bytes 0x1f 0x8b.
+///
+/// # Arguments
+///
+/// * `bytes` - Byte slice to check
+///
+/// # Returns
+///
+/// true if the data appears to be gzip-compressed
+fn is_gzip(bytes: &[u8]) -> bool {
+    bytes.len() >= 2 && bytes[0] == GZIP_MAGIC[0] && bytes[1] == GZIP_MAGIC[1]
+}
+
+/// Decompresses gzip data into a byte vector.
+///
+/// This function handles potentially large gzip files efficiently
+/// by using a reasonably sized initial buffer.
+///
+/// # Arguments
+///
+/// * `data` - Compressed gzip data
+///
+/// # Returns
+///
+/// Decompressed data in a new Vec<u8>
+/// Decompresses gzip data into a byte vector.
+///
+/// This function handles potentially large gzip files efficiently
+/// by using a reasonably sized initial buffer.
+///
+/// # Arguments
+///
+/// * `data` - Compressed gzip data
+///
+/// # Returns
+///
+/// Decompressed data in a new Vec<u8>
+fn decompress_gzip(data: &[u8]) -> Result<Vec<u8>, ChromsizeError> {
+    let mut decoder = MultiGzDecoder::new(data);
+    let mut buffer = Vec::with_capacity(8 * 1024 * 1024);
+    decoder.read_to_end(&mut buffer)?;
+    Ok(buffer)
+}
+
+/// Processes FASTA data to extract chromosome sizes in parallel.
+///
+/// This is the core processing function that validates FASTA format
+/// and uses parallel processing to handle multiple chromosomes efficiently.
+///
+/// # Arguments
+///
+/// * `data` - Raw FASTA data as bytes
+///
+/// # Returns
+///
+/// Vector of (chromosome_name, size) pairs
+/// Processes FASTA data to extract chromosome sizes in parallel.
+///
+/// This is the core processing function that validates FASTA format
+/// and uses parallel processing to handle multiple chromosomes efficiently.
+///
+/// # Arguments
+///
+/// * `data` - Raw FASTA data as bytes
+///
+/// # Returns
+///
+/// Vector of (chromosome_name, size) pairs
+fn chromsize(data: &[u8]) -> Result<Vec<(String, u64)>, ChromsizeError> {
+    if data.is_empty() {
+        return Err(ChromsizeError::EmptyInput);
+    }
+
+    if data[0] != b'>' {
+        return Err(ChromsizeError::InvalidFasta(
+            "Input does not start with '>'".to_string(),
+        ));
+    }
+
+    data.par_split(|&c| c == b'>')
+        .filter(|chunk| !chunk.is_empty())
+        .map(process_record)
+        .collect()
+}
+
+/// Processes a single FASTA record to extract header and count sequence length.
+///
+/// This function parses a FASTA record (header + sequence), validates the format,
+/// and counts the total number of valid sequence characters while enforcing
+/// strict FASTA format compliance.
+///
+/// # Arguments
+///
+/// * `chunk` - FASTA record data without the leading '>' character
+///
+/// # Returns
+///
+/// Tuple of (header_string, sequence_length)
+/// Processes a single FASTA record to extract header and count sequence length.
+///
+/// This function parses a FASTA record (header + sequence), validates the format,
+/// and counts the total number of valid sequence characters while enforcing
+/// strict FASTA format compliance.
+///
+/// # Arguments
+///
+/// * `chunk` - FASTA record data without the leading '>' character
+///
+/// # Returns
+///
+/// Tuple of (header_string, sequence_length)
+fn process_record(chunk: &[u8]) -> Result<(String, u64), ChromsizeError> {
+    let Some(stop) = memchr::memchr(b'\n', chunk) else {
+        return Err(ChromsizeError::InvalidFasta(
+            "Record header is not terminated by a newline".to_string(),
+        ));
+    };
+
+    let header = std::str::from_utf8(&chunk[..stop])
+        .map_err(|_| ChromsizeError::InvalidFasta("Record header is not UTF-8".to_string()))?
+        .trim();
+
+    if header.is_empty() {
+        return Err(ChromsizeError::InvalidFasta(
+            "Record has an empty header".to_string(),
+        ));
+    }
+
+    let data = &chunk[stop + 1..];
+
+    if memchr::memchr2(b' ', b'\t', data).is_some() {
+        return Err(ChromsizeError::InvalidFasta(
+            "Record contains whitespace inside sequence data".to_string(),
+        ));
+    }
+
+    if memchr::memchr(b'>', data).is_some() {
+        return Err(ChromsizeError::InvalidFasta(
+            "Record contains '>' inside sequence data".to_string(),
+        ));
+    }
+
+    if data.iter().any(|&b| match b {
+        b'\n' | b'\r' => false,
+        0x00..=0x08 | 0x0b | 0x0c | 0x0e..=0x1f => true,
+        0x20..=0x7e => false,
+        _ => true,
+    }) {
+        return Err(ChromsizeError::InvalidFasta(
+            "Record contains invalid control or non-ASCII characters".to_string(),
+        ));
+    }
+
+    let count_newlines = bytecount::count(data, b'\n') as u64;
+    let count_cr = bytecount::count(data, b'\r') as u64;
+    let totals = data.len() as u64 - count_newlines - count_cr;
+
+    Ok((header.to_string(), totals))
+}
+
+/// Writes chromosome sizes to a tab-delimited file.
+///
+/// This function takes the calculated chromosome sizes and writes them
+/// to the specified output file in a standard two-column format:
+/// chromosome_name<TAB>size
+///
+/// # Arguments
+///
+/// * `sizes` - Vector of (chromosome_name, size) tuples
+/// * `out` - Output file path
+///
+/// # Examples
+///
+/// ```ignore
+/// let sizes = vec![("chr1".to_string(), 248956422), ("chr2".to_string(), 242193529)];
+/// writer(&sizes, "chrom.sizes")?;
+/// // Output file contains:
+/// // chr1    248956422
+/// // chr2    242193529
 /// ```
-pub fn writer<T>(sizes: Vec<(String, u64)>, out: T)
+pub fn writer<T>(sizes: &[(String, u64)], out: T) -> Result<(), ChromsizeError>
 where
     T: AsRef<Path> + Debug,
 {
-    let o = match File::create(out) {
-        Ok(f) => f,
-        Err(e) => panic!("Error creating file: {}", e),
-    };
-    let mut writer = BufWriter::new(o);
+    let file = File::create(out)?;
+    let mut writer = BufWriter::with_capacity(64 * 1024, file);
 
     for (k, v) in sizes.iter() {
-        if v == &0 && k.is_empty() {
-            // INFO: skip zero-length chromosomes and empty names
-            // INFO: see github.com/alejandrogzi/chromsize/pull/3
-            continue;
-        }
-
-        writeln!(writer, "{}\t{}", k, v).unwrap();
+        writeln!(writer, "{}\t{}", k, v)?;
     }
+
+    Ok(())
 }

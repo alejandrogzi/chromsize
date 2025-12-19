@@ -46,16 +46,11 @@ use std::path::PathBuf;
 /// os.remove("test_fasta.fa")
 /// ```
 #[pyfunction]
-#[pyo3(signature = (fasta, accession_only=false))]
-fn get_chromsizes(
-    py: Python,
-    fasta: PyObject,
-    accession_only: bool,
-) -> PyResult<Vec<(String, u64)>> {
-    let fasta = PathBuf::from(fasta.extract::<String>(py)?);
+fn get_chromsizes(py: Python, sequence: PyObject) -> PyResult<Vec<(String, u64)>> {
+    let sequence = PathBuf::from(sequence.extract::<String>(py)?);
 
-    let sizes = chromsize::get_sizes(&fasta, accession_only);
-    sizes.map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))
+    chromsize::get_sizes(&sequence)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))
 }
 
 /// Python function to write chromosome sizes to an output file.
@@ -108,25 +103,17 @@ fn get_chromsizes(
 /// os.remove(output_file)
 /// ```
 #[pyfunction]
-#[pyo3(signature = (fasta, output, accession_only=false))]
-fn write_chromsizes(
-    py: Python,
-    fasta: PyObject,
-    output: PyObject,
-    accession_only: bool,
-) -> PyResult<String> {
-    let fasta = PathBuf::from(fasta.extract::<String>(py)?);
+fn write_chromsizes(py: Python, sequence: PyObject, output: PyObject) -> PyResult<String> {
+    let sequence = PathBuf::from(sequence.extract::<String>(py)?);
     let output = PathBuf::from(output.extract::<String>(py)?);
 
-    let sizes = chromsize::get_sizes(&fasta, accession_only);
-    if let Ok(sizes) = sizes {
-        chromsize::writer(sizes, &output);
-        Ok(format!("Chromosome sizes written to {}", output.display()))
-    } else {
-        Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            "Failed to get chromosome sizes",
-        ))
-    }
+    let sizes = chromsize::get_sizes(&sequence)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
+
+    chromsize::writer(&sizes, &output)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
+
+    Ok(format!("Chromosome sizes written to {}", output.display()))
 }
 
 /// A PyO3 module for `chromsize`

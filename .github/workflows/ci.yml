@@ -20,18 +20,18 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: Cargo check
-        run: cargo check --manifest-path ./chromsize/Cargo.toml
+        run: cargo check --manifest-path ./chromsize/Cargo.toml 
 
       - name: Cargo clippy
-        run: cargo clippy --manifest-path ./chromsize/Cargo.toml
-
+        run: cargo clippy --manifest-path ./chromsize/Cargo.toml 
+    
       - name: Cargo build release
-        run: cargo build --manifest-path ./chromsize/Cargo.toml --release
+        run: cargo build --manifest-path ./chromsize/Cargo.toml --release       
 
       - name: Cargo clean
         if: ${{ matrix.rust == 'stable' }}
-        run: cargo clean --manifest-path ./chromsize/Cargo.toml
-
+        run: cargo clean --manifest-path ./chromsize/Cargo.toml 
+      
       - name: Upload build artifacts
         if: ${{ startsWith(matrix.os, 'macos') != true && matrix.rust == 'stable' }}
         uses: actions/upload-artifact@v4
@@ -40,7 +40,7 @@ jobs:
           path: |
             ./chromsize/target/release/chromsize/chromsize
             ./chromsize/target/release/chromsize/libchromsize.rlib
-
+      
       - name: Upload build artifacts (macOS)
         if: ${{ startsWith(matrix.os, 'macos') && matrix.rust == 'stable' }}
         uses: actions/upload-artifact@v4
@@ -83,4 +83,3 @@ jobs:
         run: |
           cd py-chromsize
           source $(hatch env find)/bin/activate
-          maturin develop --release --manifest-path Cargo.toml

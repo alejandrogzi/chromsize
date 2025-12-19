@@ -44,10 +44,10 @@ googled 'get chromosome sizes from fasta', grab every command/tool I found and b
 ## Usage
 ### Binary
 ``` rust
-Usage: chromsize --input <FASTA/FASTA.GZ/2BIT> --output <OUTPUT> [-t <THREADS>]
+Usage: chromsize [--sequence <SEQUENCE>] --output <OUTPUT> [-t <THREADS>]
 
 Arguments:
-    -i, --input <FASTA>: FASTA file
+    -s, --sequence <SEQUENCE>: Sequence file (FASTA/2bit, use '-' or omit to read stdin) [default: -]
     -o, --output <OUTPUT>: path to chrom.sizes
 
 Options:
@@ -56,6 +56,12 @@ Options:
     --help: print help
     --version: print version
 ```
+examples:
+- stream: `cat genome.fa | chromsize -o tmp.chromsizes`
+- explicit stdin: `zcat genome.fa.gz | chromsize -o tmp.chromsizes -s -`
+- file input: `chromsize -s genome.fa -o tmp.chromsizes`
+
+input format (FASTA/2bit) and gzip compression are auto-detected (from files or stdin) even if the extension is missing.
 #### crate: [https://crates.io/crates/chromsize](https://crates.io/crates/chromsize)
 
 ### Installation
@@ -70,11 +76,11 @@ to install rust and use chromsize on your system follow this steps:
 use chromsize;
 
 fn main() {
-    let input = PathBuf::new("/path/to/fasta.fa"); // INFO: can be .2bit too
+    let input = PathBuf::new("/path/to/genome.fa");
     let output = PathBuf::new("/path/to/chrom.sizes");
 
-    let sizes: Vec<(String, u64)> = chromsize::chromsize(&input);
-    chromsize::write(sizes, &output)
+    let sizes: Vec<(String, u64)> = chromsize::get_sizes(&input).expect("failed to read sequence");
+    chromsize::writer(&sizes, &output).expect("failed to write chrom sizes");
 }
 ```
 ### Python
@@ -88,7 +94,7 @@ use it as a binary wrapper [for .fa and .2bit]:
 ``` python3
 import chromsize as cs
 
-input = "/path/to/fasta.fa" # INFO: can be .2bit too
+input = "/path/to/genome.fa"
 output = "/path/to/chrom.sizes"
 cs.write_chromsizes(input, output)
 ```
@@ -96,7 +102,7 @@ or just get them directly
 ``` python3
 import chromsize as cs
 
-input = "/path/to/fasta.fa" # INFO: can be .2bit too
+input = "/path/to/genome.fa"
 sizes = cs.get_chromsizes(input)
 
 >>> print(sizes)
@@ -112,14 +118,14 @@ to build chromsize from this repo, do:
 
 1. get rust
 2. run `git clone https://github.com/alejandrogzi/chromsize.git && cd chromsize`
-3. run `cargo run --release -- -i <FASTA/FASTA.GZ/2BIT> -o <OUTPUT>`
+3. run `cargo run --release -- -s <SEQUENCE> -o <OUTPUT>`
 
 ## Container image
 to build the development container image:
 1. run `git clone https://github.com/alejandrogzi/chromsize.git && cd chromsize`
 2. initialize docker with `start docker` or `systemctl start docker`
 3. build the image `docker image build --tag chromsize .`
-4. run `docker run --rm -v "[dir_where_your_fa_is]:/dir" chromsize -f /dir/<INPUT> -o /dir/<OUTPUT>`
+4. run `docker run --rm -v "[dir_where_your_fa_is]:/dir" chromsize -s /dir/<SEQUENCE> -o /dir/<OUTPUT>`
 
 ## Conda
 to use chromsize through Conda just:
@@ -143,7 +149,7 @@ here is all the info and metadata from my experiment:
 | Tool      | Command                                                                                                          | Reference | Discussion |
 |-----------|------------------------------------------------------------------------------------------------------------------|-----------|------------|
 | seqkit    | `seqkit fx2tab --length --name --header-line {assembly} > chrom.sizes`                                           | [1]       | [2]        |
-| chromsize | `target/release/chromsize -f {assembly} -o chrom.sizes`                                                          | [3]       |            |
+| chromsize | `target/release/chromsize -s {assembly} -o chrom.sizes`                                                          | [3]       |            |
 | pyfaidx   | `faidx {assembly} -i chromsizes > chrom.sizes`                                                                   | [4]       | [5]        |
 | samtools  | `samtools faidx {assembly} && wait \| cut -f1,2 {assembly}.fai > chrom.sizes`                                      | [6]       | [5]        |
 | faSize    | `faSize -detailed -tab {assembly} > chrom.sizes`                                                                 | [7]       |            |

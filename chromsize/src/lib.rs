@@ -1,69 +1,37 @@
-//! chromsize
-//! Alejandro Gonzales-Irribarren, 2024
+//! chromsize: fast chromosome size extraction from FASTA and 2bit.
 //!
-//! `chromsize` is a utility designed to extract chromosome names
-//! and their corresponding lengths from input and 2bit files. It supports
-//! both plain and gzipped input formats [and .2bit] and offers an option to
-//! include only the accession ID from the input headers.
+//! chromsize reads sequence data (FASTA or 2bit) from a file or stdin, detects
+//! the input format by content, and returns chromosome sizes as `(name, size)`
+//! pairs. Gzip-compressed input is auto-detected and decompressed for both
+//! files and stdin.
 //!
-//! ## Usage
+//! ## CLI
+//! ```
+//! chromsize --sequence <SEQUENCE> --output <OUTPUT> [-t <THREADS>]
 //!
-//! To use `chromsize`, you typically provide the input input or 2bit file
-//! and specify the desired output file.
-//!
-//! ```bash
-//! chromsize [OPTIONS] --input <input> --output <OUTPUT>
+//! -s, --sequence <SEQUENCE>  Sequence file (FASTA/2bit, use '-' or omit to read stdin)
+//! -o, --output <OUTPUT>      Output path for chrom.sizes
+//! -t, --threads <THREADS>    Number of threads (default: all cores)
 //! ```
 //!
-//! ## Options
+//! Examples:
+//! - stream FASTA: `cat genome.fa | chromsize -o chrom.sizes`
+//! - stream gzip FASTA: `zcat genome.fa.gz | chromsize -o chrom.sizes`
+//! - file input: `chromsize -s genome.fa -o chrom.sizes`
+//! - 2bit from stdin: `cat genome.2bit | chromsize -s - -o chrom.sizes`
 //!
-//! Here's a breakdown of the available command-line options:
+//! ## Library
+//! ```rust
+//! use std::path::PathBuf;
 //!
-//! * **`-i`, `--input <input>`**
-//!     * **Purpose**: Specifies the path to the input input file. This is a **required** option.
-//!     * **Example**: `--input genome.input` or `--input sequences.input.gz`
+//! let input = PathBuf::from("/path/to/genome.fa");
+//! let output = PathBuf::from("/path/to/chrom.sizes");
 //!
-//! * **`-o`, `--output <OUTPUT>`**
-//!     * **Purpose**: Specifies the path where the output chromosome sizes will be written.
-//!                    This is a **required** option. The output will typically be a tab-separated
-//!                    file with chromosome names and their lengths.
-//!     * **Example**: `--output chrom_lengths.txt`
+//! let sizes = chromsize::get_sizes(&input).expect("failed to read input");
+//! chromsize::writer(&sizes, &output).expect("failed to write sizes");
+//! ```
 //!
-//! * **`-t`, `--threads <THREADS>`**
-//!     * **Purpose**: Sets the number of threads to use for processing. This can speed up processing
-//!                    for large input files.
-//!     * **Default**: `8`
-//!     * **Example**: `--threads 4` (to use 4 threads)
-//!
-//! * **`-a`, `--accession-only`**
-//!     * **Purpose**: A flag that, when present, instructs `chromsize` to only keep the accession ID
-//!                    part of the input header. This means it will stop reading the header at the first
-//!                    blank space. If omitted, the entire header line up to the first newline character
-//!                    will be used as the chromosome name.
-//!     * **Example**: `--accession-only`
-//!
-//! * **`-h`, `--help`**
-//!     * **Purpose**: Displays a help message with usage information and available options.
-//!     * **Example**: `chromsize --help`
-//!
-//! * **`-V`, `--version`**
-//!     * **Purpose**: Prints the version information of the `chromsize` tool.
-//!     * **Example**: `chromsize --version`
-//!
-//! ## Example Usage Scenarios
-//!
-//! 1.  **Get chromosome sizes from a plain input file, using full headers, with default threads:**
-//!
-//!     ```bash
-//!     chromsize --input input.fa --output chrom_sizes.txt
-//!     ```
-//!
-//! 2.  **Get chromosome sizes from a gzipped input file, extracting only accession IDs, using 4 threads:**
-//!
-//!     ```bash
-//!     chromsize --input input.input.gz --output accession_sizes.txt --accession-only --threads 4
-//!     ```
-//!
-
+//! The `get_sizes` function auto-detects FASTA vs 2bit by content and supports
+//! stdin when the input path is `-`.
 pub mod size;
 pub use size::*;

@@ -1,6 +1,6 @@
 [package]
 name = "chromsize"
-version = "0.0.32"
+version = "0.0.33"
 edition = "2021"
 authors = ["alejandrogzi <alejandrxgzi@gmail.com>"]
 license = "MIT"
@@ -18,7 +18,8 @@ clap = { version = "4.0", features = ["derive"] }
 num_cpus = "1.14.0"
 memmap2 = "0.9.4"
 rayon = "1.10.0"
-flate2 = "1.0.20"
+flate2 = { version = "1.0.20", default-features = false, features = ["zlib-ng-compat"] }
+bytecount = "0.6"
 twobit = "0.2.1"
 
 [profile.release]
