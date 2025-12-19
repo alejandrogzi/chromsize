@@ -1,7 +1,13 @@
 <p align="center">
-  <h1 align="center">
-    chromsize
-  </h1>
+  <p align="center">
+    <img width=200 align="center" src="./assets/logo.png" >
+  </p>
+
+  <span>
+    <h1 align="center">
+        chromsize
+    </h1>
+  </span>
 
   <p align="center">
     <a href="https://img.shields.io/badge/version-0.1.0dev-green" target="_blank">
@@ -20,9 +26,23 @@
 
 
   <p align="center">
-    annoyed to have to create an index and cut it? <br>
-    have to look for that old script every time? <br>
-    got you. just get your chrom sizes. very fast.
+
+  </p>
+
+  <p align="center">
+    <samp>
+        <span>annoyed to have to create an index and cut it?</span>
+        <br>
+        <span>have to look for that old script every time?</span>
+        <br>
+        <span>got you. just get your chrom sizes. very fast.</span>
+        <br>
+        <br>
+        <a href="https://docs.rs/chromsize/0.0.33/chromsize/">docs</a> .
+        <a href="https://github.com/alejandrogzi/chromsize?tab=readme-ov-file#Usage">usage</a> .
+        <a href="https://github.com/alejandrogzi/chromsize?tab=readme-ov-file#Installation">install</a> .
+        <a href="https://github.com/alejandrogzi/chromsize?tab=readme-ov-file#Conda">conda</a> .
+    </samp>
   </p>
 
 
