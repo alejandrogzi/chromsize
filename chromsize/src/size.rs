@@ -506,11 +506,12 @@ fn process_record(chunk: &[u8]) -> Result<(String, u64), ChromsizeError> {
 /// // chr1    248956422
 /// // chr2    242193529
 /// ```
-pub fn writer<T>(sizes: &[(String, u64)], out: T) -> Result<(), ChromsizeError>
+pub fn writer<T>(sizes: &[(String, u64)], outdir: T, prefix: String) -> Result<(), ChromsizeError>
 where
     T: AsRef<Path> + Debug,
 {
-    let file = File::create(out)?;
+    std::fs::create_dir_all(&outdir)?;
+    let file = File::create(outdir.as_ref().join(prefix))?;
     let mut writer = BufWriter::with_capacity(64 * 1024, file);
 
     for (k, v) in sizes.iter() {

@@ -33,15 +33,25 @@ pub struct Args {
     )]
     pub sequence: PathBuf,
 
-    /// Path to output chrom sizes
+    /// Path to output chrom sizes directory
     #[clap(
         short = 'o',
-        long = "output",
-        help = "Path to output chrom sizes",
+        long = "outdir",
+        help = "Path to output chrom sizes directory",
         value_name = "OUTPUT",
-        required = true
+        default_value = "."
     )]
-    pub out: PathBuf,
+    pub outdir: PathBuf,
+
+    /// Path to output chrom sizes
+    #[clap(
+        short = 'p',
+        long = "prefix",
+        help = "File prefix for output chrom sizes",
+        value_name = "PREFIX",
+        default_value = "chrom.sizes"
+    )]
+    pub prefix: String,
 
     /// Number of threads
     #[clap(
