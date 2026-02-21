@@ -10,8 +10,8 @@
   </span>
 
   <p align="center">
-    <a href="https://img.shields.io/badge/version-0.1.0dev-green" target="_blank">
-      <img alt="Version Badge" src="https://img.shields.io/badge/version-0.0.1-green">
+    <a href="https://img.shields.io/badge/version-0.0.34dev-green" target="_blank">
+      <img alt="Version Badge" src="https://img.shields.io/badge/version-0.0.34-green">
     </a>
     <a href="https://crates.io/crates/chromsize" target="_blank">
       <img alt="Crates.io Version" src="https://img.shields.io/crates/v/chromsize">
@@ -57,12 +57,11 @@ but first, how is this better than any other option? yeah, just check the image 
 
 googled 'get chromosome sizes from fasta', grab every command/tool I found and benchmarked it. surprisingly, you can lose 14 seconds of your life just waiting for those chrom sizes to be calculated. crazy.
 
-> What's new on v.0.0.33?
-> - --fasta now is --sequence, change based on .fa/.fa.gz/.2bit inputs
-> - implementation of stdin mode!
-> - --sequence now defaults to -, so omitting it reads stdin; help text mentions stdin.
-> - SIMD newline/CR counting via bytecount 
-> - Switched gzip inflate to flate2 with the faster zlib-ng-compat backend and enlarged output buffering
+> What's new on v.0.0.34?
+> - --output now is --outdir, allows you to specify a directory to write the chrom sizes
+> - --prefix implemented, allows you to specify a prefix for the output chrom sizes, default is 'chrom.sizes'
+> - included test module and added tests in CI
+> - added CI docker image to push to registry
 
 ## Usage
 ### Binary
@@ -71,7 +70,8 @@ Usage: chromsize [--sequence <SEQUENCE>] --output <OUTPUT> [-t <THREADS>]
 
 Arguments:
     -s, --sequence <SEQUENCE>: Sequence file (FASTA/2bit, use '-' or omit to read stdin) [default: -]
-    -o, --output <OUTPUT>: path to chrom.sizes
+    -o, --outdir <OUTPUT>: path to output chrom sizes directory [default: .]
+    -p, --prefix <PREFIX>: file prefix for output chrom sizes [default: chrom.sizes]
 
 Options:
     -t, --threads <THREADS>: number of threads [default: your max ncpus]

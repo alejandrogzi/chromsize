@@ -1,15 +1,41 @@
-# syntax=docker/dockerfile:1
+# ---------- Build Stage ----------
+FROM rust:1.93-bullseye AS builder
 
-FROM rust:1.74.0-bullseye AS builder
+WORKDIR /build
 
-COPY .git /app/.git
-COPY Cargo.lock Cargo.toml /app/
-COPY src/ /app/src/
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    cmake \
+    pkg-config \
+    build-essential \
+    binutils \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN cd chromsize && cargo build --release --manifest-path /app/Cargo.toml
+COPY chromsize/Cargo.toml chromsize/Cargo.lock ./
+COPY chromsize/src ./src
 
-FROM debian:bullseye
+RUN cargo build --release --locked --bin chromsize && \
+    strip target/release/chromsize
 
-COPY --from=builder /app/target/release/chromsize /usr/local/bin/
+# ---------- Runtime Stage ----------
+FROM debian:bookworm-slim
 
-ENTRYPOINT ["/usr/local/bin/chromsize"]
+# Install minimal runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the binary
+COPY --from=builder /build/target/release/chromsize /usr/local/bin/chromsize
+
+# Set up non-root user
+RUN useradd -m -u 1000 user && \
+    chmod +x /usr/local/bin/chromsize
+
+USER user
+WORKDIR /data
+
+# Test that it works
+RUN chromsize --help

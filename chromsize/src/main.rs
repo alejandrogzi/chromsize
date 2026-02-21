@@ -102,7 +102,7 @@ fn main() {
         }
     };
 
-    if let Err(e) = writer(&sizes, args.out) {
+    if let Err(e) = writer(&sizes, args.outdir, args.prefix) {
         eprintln!("ERROR: {}", e);
         process::exit(1);
     }

@@ -103,14 +103,19 @@ fn get_chromsizes(py: Python, sequence: PyObject) -> PyResult<Vec<(String, u64)>
 /// os.remove(output_file)
 /// ```
 #[pyfunction]
-fn write_chromsizes(py: Python, sequence: PyObject, output: PyObject) -> PyResult<String> {
+fn write_chromsizes(
+    py: Python,
+    sequence: PyObject,
+    output: PyObject,
+    prefix: PyObject,
+) -> PyResult<String> {
     let sequence = PathBuf::from(sequence.extract::<String>(py)?);
     let output = PathBuf::from(output.extract::<String>(py)?);
 
     let sizes = chromsize::get_sizes(&sequence)
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
 
-    chromsize::writer(&sizes, &output)
+    chromsize::writer(&sizes, &output, prefix.to_string())
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", e)))?;
 
     Ok(format!("Chromosome sizes written to {}", output.display()))
