@@ -154,7 +154,9 @@ to build the development container image:
 to use chromsize through Conda just:
 1. `conda install chromsize -c bioconda` or `conda create -n chromsize -c bioconda chromsize`
 
-> ## Nextflow (not available yet)
+## Nextflow
+to use chromsize through Nextflow as a module just:
+1. borrow `main.nf` from [here](https://github.com/alejandrogzi/chromsize/blob/main/assets/nf/chromsize/main.nf)
 
 ## Benchmark
 
