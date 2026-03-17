@@ -156,7 +156,7 @@ to use chromsize through Conda just:
 
 ## Nextflow
 to use chromsize through Nextflow as a module just:
-1. borrow `main.nf` from [here](https://github.com/alejandrogzi/chromsize/blob/main/assets/nf/chromsize/main.nf)
+1. borrow `main.nf` from [here](https://github.com/alejandrogzi/chromsize/blob/master/assets/nf/chromsize/main.nf)
 
 ## Benchmark
 
